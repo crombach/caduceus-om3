@@ -147,6 +147,28 @@ GRID_ROW_AND_BACK = ('s1 wait wait ok wait ok wait ' + 'down wait ' * 7 + HOLDER
 NOISE_FILTER_OFF_ROW = (f's1 wait wait {NR_ROW_STAR(False)} poke:{NF_BYTE:x}=fe wait {NR_ROW_STAR(False)} '
                         f'pokep:{NR_SLOT_COLOR2}=01 wait {NR_ROW_STAR(True)} poweroff')
 
+# The wheel's dial label (#64) names the page: Saturation -> Hue -> Luminance -> Shadows -> Highlights -> Saturation.
+# Saturation is one page: INFO moves on from a single color, and ALL stays on the dial. The checks read a
+# descriptor's stream size (+12), which differs per picture: update them when the pictures change.
+U32 = lambda v: v.to_bytes(4, 'little').hex()
+U16 = lambda v: v.to_bytes(2, 'little').hex()
+VDESC = 0xa4cf688c                # the dial label ("Vivid"), 70 x 30
+LABEL_SIZE = {'Sat': 796, 'Hue': 996, 'Lum': 1092, 'Shadow': 1508, 'Hilite': 1412}
+LABEL_IS = lambda name: f'expect:mem:{VDESC + 12:x}={U32(LABEL_SIZE[name])}'
+OPEN_WHEEL = 's1 ok ok down down down wait'
+WHEEL_PAGE_LABELS = (f'{OPEN_WHEEL} {LABEL_IS("Sat")} info wait {LABEL_IS("Hue")} info wait {LABEL_IS("Lum")} '
+                     f'info wait {LABEL_IS("Shadow")} info wait {LABEL_IS("Hilite")} info wait {LABEL_IS("Sat")} '
+                     f'poweroff')
+# Both Saturation guides read "Saturation [INFO]": GDESC for a single color, SDESC for ALL (175 wide while ours).
+# Off Saturation, SDESC is the camera's again.
+GDESC, SDESC = 0xa49ecdf8, 0xa49edf88
+SATURATION_GUIDE, SDESC_STOCK_SIZE = 4132, 4471
+SDESC_IS = lambda width, size: f'expect:mem:{SDESC + 2:x}={U16(width)} expect:mem:{SDESC + 12:x}={U32(size)}'
+WHEEL_SAT_GUIDES = (f'{OPEN_WHEEL} expect:mem:{GDESC + 12:x}={U32(SATURATION_GUIDE)} {SDESC_IS(175, SATURATION_GUIDE)} '
+                    f'info wait {SDESC_IS(180, SDESC_STOCK_SIZE)} poweroff')
+# Left on Hue, the half-press puts the wheel back on Saturation, and its dial label with it.
+WHEEL_RESET_LABEL = (f'{OPEN_WHEEL} info wait {LABEL_IS("Hue")} menu wait menu wait s1 wait wait '
+                     f'{LABEL_IS("Sat")} poweroff')
 
 @dataclass
 class Boot:
@@ -269,6 +291,15 @@ TESTS = {
     ],
     'noise-filter-row-follows-the-camera-setting': [
         Boot(NOISE_FILTER_OFF_ROW),
+    ],
+    'color-wheel-dial-label-follows-the-page': [
+        Boot(WHEEL_PAGE_LABELS),
+    ],
+    'color-wheel-dial-label-resets-with-the-page': [
+        Boot(WHEEL_RESET_LABEL),
+    ],
+    'color-wheel-saturation-guide-names-the-page': [
+        Boot(WHEEL_SAT_GUIDES),
     ],
     'video-boot-after-photo-boot': [
         Boot('s1 wait wait poweroff'),

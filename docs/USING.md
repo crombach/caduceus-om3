@@ -64,9 +64,10 @@ curves once the camera has taken `CURVES.BIN` (from v0.30); changing them on a f
 ## The colour wheel (HSL)
 
 1. Go to the **HSL** row and press **INFO**.
-2. Press **INFO** again to move through the pages: **Color** (saturation of one colour) → **Color All** → **Hue** →
-   **Luminance** → **Shadows** → **Highlights** → back to Color.
-3. On each page the **front dial** picks the colour and the **rear dial** sets the value.
+2. Press **INFO** again to move through the pages: **Color** (saturation) → **Hue** → **Luminance** → **Shadows** →
+   **Highlights** → back to Color.
+3. On each page the **front dial** picks the colour and the **rear dial** sets the value. On Color, the front dial
+   also stops at **ALL**, between Yellow and Yellow-green, to set every colour at once.
 
 The 12 colours run clockwise from Yellow at 12 o'clock: Yellow, Orange, Orange-red, Red, Magenta, Violet, Blue,
 Blue-cyan, Cyan, Green-cyan, Green, Yellow-green.

@@ -5701,3 +5701,54 @@ rgb-page-counts-every-click, halation-matches-the-model). Package `test-builds/2
   tag (twice) and the built-in GUIDES CRC (53 bytes). E1479999.BIN 60b6d954…f546; `patch.py --release v0.30.3` makes it
   byte for byte, `--release v0.30.2` still 7fbd3957…. Extras as v0.30.2. LookLab rebuilt (h8's preview). PR #69 lands
   on main with this merge (its head 7b0cc80 is in the history).
+
+## Issue #64: the wheel's dial label names the page (2026-11-16; feature/dial-label-per-page; camera-tested)
+- Owner on #64: "I like these changes, if you make a pr with them, I'll merge". This replaces the sp1 request (2026-11-09)
+  that the dial label stay the camera's "Vivid" on Shadows / Highlights.
+- The label ("Vivid", VDESC 0xa4cf688c, 70 x 30) now reads Sat (Color and Color All), Hue, Lum, Shadow, Hilite.
+  LABELS.BIN goes from 27 to 32 labels (indices 27..31, after the Extras ones). `xb_va` (xblock.s) maps the axis to
+  the label, 0xff = the stock picture (Film).
+- The label code only ran on axes 1..4: ed_get calls vl_s only there, and the Shadows / Highlights readout is
+  tn_get's, which skipped it (the sp1 request). ed_get now also calls vl_s on axis 0, with the entry's d0 / d1 kept
+  for the stock path. tn_get calls it on its readout.
+- Emulator: VDESC +12 per page = Sat 796, Hue 996, Lum 1092, Shadow 1508, Hilite 1412 (each = mklabels encode11
+  length). Test `color-wheel-dial-label-follows-the-page`. On v0.30's code every page keeps the stock 1660.
+- Leaving the wheel keeps the last label in VDESC (Sat after the usual exit from Color), as the Extras labels did
+  since v0.20. Whether another camera screen draws that picture: camera test.
+- Follow-up (2026-11-17, emulator only). The guides on Saturation were the camera's: "Color All [INFO]" with one colour,
+  "Color Select [INFO]" with all colours. They name what INFO does next, while ours name the page, so they read swapped.
+  - **One Saturation page (crombach, camera, on the look-perf test build):** the front dial already reaches ALL, so
+    the INFO stop on ALL repeated it. INFO with a single color now goes straight to Hue (k_6b -> k_step). INFO with ALL
+    on is unchanged: the stock handler turns ALL off, then k_step. This differs from the release: the owner's call on
+    the PR.
+  - **Guides.** gd_s0 puts film test 8's "Saturation [INFO]" (P+SATB) in both Saturation guides: GDESC (single color)
+    and SDESC 0xa49edf88 (ALL), the latter with its width set to 175. gd_sel puts SDESC back to the camera's, at width
+    180, before every gd_set.
+  - **Dial label.** "Sat" in both states: "Saturation" would squeeze to 42 % in the 62 px label. "Highlt" (squeezed to
+    74 %) read jammed on the camera, so it is now "Hilite" (56 px, no squeeze).
+  - **Half-press.** ed_trig calls vl_s after its page reset, so the label reads "Sat" right away.
+  - **W_SALL.** Its SDESC code would now share the descriptor with gd_s0's. Re-enabling it needs a look at both.
+  - **Pictures live in the heap.** A test build that pointed a picture's descriptor into .ext12 (0x60f9…) blanked the
+    rest of the camera's menu (camera, crombach, 2026-11-16, the swatch work on feature/color-wheel-swatches). Every
+    picture of ours that the camera has shown points into the heap (0xa2…). om-emu draws from either address, so no
+    emulator test catches this.
+  - **Camera (crombach, 2026-11-16, build b023e44e…): the menu works, but the wheel showed a moment late when moving
+    down onto it.** om-emu instruction counts on that step (a copy of session_ed1.mjs that adds `insns` to WATCH hits,
+    ed_get's first to last hit): v0.30.3 1 761 445, this build 3 379 421. The extra 1.62 M is xb_rend drawing "Sat"
+    (vl_s). xb_lc caches one label, so each INFO step to a new page cost the same, and so did a half-press after
+    leaving the wheel off Saturation. Now build.py encodes the five wheel labels (mklabels.render, encode11: the same
+    sizes as xb_rend's, per the label tests) into wl_tab. xb_vl points VDESC at them, with no drawing. Step after:
+    1 761 614.
+  - **Where the pictures live.** wl_tab sits in .ext13 (.ext12 had no room). fl_mk copies it into a heap block of its
+    own, wl_blk. It could not join the P+SATB block: an 18 KB block made malloc return 0 in om-emu, and the Saturation
+    pictures went with it. xb_vl gets wl_blk's address from build.py (WL_BLK).
+  - **Build note.** A `.set` that uses a films.inc size before films.inc is included works in editor.s's own code.
+    But nm prints a wrong value for it, so a value handed to the code block must be set after films.inc.
+  - **Camera (crombach, 2026-11-16, E1479999.BIN 90283858…): no issues.** Labels, the one Saturation page, the guides,
+    the half-press reset, editing on each page, photos and video all worked. No screen showed "Sat" in place of
+    "Vivid". The wheel opens as fast as on v0.30.3 (om-emu: 1 762 023 instructions on that step, v0.30.3 1 761 853).
+    The swatch work moved to feature/color-wheel-swatches, its own PR.
+  - Tests:
+    - `color-wheel-dial-label-follows-the-page` (INFO from Saturation to Hue)
+    - `color-wheel-dial-label-resets-with-the-page`
+    - `color-wheel-saturation-guide-names-the-page`

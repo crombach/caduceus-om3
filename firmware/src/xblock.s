@@ -2077,11 +2077,12 @@ xb_reloc:                         /* a2 = P (x_load) */
  movm (sp),[d2,d3,a2,a3]
  rets
 
-/* ---- dial labels: OM3MOD/LABELS.BIN v2 = 'OM3V' | u32 total | u32 CRC-32 of bytes 12.. | u32 n (24) | n bitmaps
+/* ---- dial labels: OM3MOD/LABELS.BIN v2 = 'OM3V' | u32 total | u32 CRC-32 of bytes 12.. | u32 n (XL_N) | n bitmaps
  * 30 rows x 9 bytes (70 px, MSB first, 1 = letter fill). One heap copy (XL_FILE B) and one 2 KB stream buffer; the
  * label is drawn and encoded (OSD type 11, 70 x 30) only when it changes. */
- .set XL_N, 27
+ .set XL_N, 32
  .include "wbglyph.inc"           /* the build's: XL_FILE, the WB cell's layout (WBC_*) */
+ .include "wheeldef.inc"          /* WLL, XL_W0 (build.py) */
  .set XL_BM, 270
  /* XL_FILE: the file's size, from the build (wbglyph.inc: v0.25 the WB cell glyphs after the bitmaps) */
  .set XL_OUT, 2048
@@ -2338,7 +2339,8 @@ xb_rend:
 
 /* label vl (vl_s jump; frame [d2,d3,a2,a3],20 of vl_s): d2 = slice, a2 = P, a3 = the caller's a0, d3 its a1.
  * On the Extras page, slices 1..8: the "Vivid" picture's descriptor (VDESC, 70 x 30) shows the label for the slice
- * and its value; anywhere else the stock picture. Only a descriptor that is 70 x 30 with the stock payload or ours is
+ * and its value; on the other pages the page's label (xb_va), the stock picture where it has none. Only a descriptor
+ * that is 70 x 30 with the stock payload or ours is
  * touched. Stores: VDESC +12 size, +16 payload (as gd_set does for the guide picture), xb_lc, the stream buffer. */
 xb_vl:
  add -12,sp                       /* (0) call slot (xb_rend's return word), (4) the caller's a1, (8) its a0 */
@@ -2361,11 +2363,27 @@ xb_vl:
  mov xb_lo,a1
  mov (a1),d1
  cmp d1,d0
- bne 9f
+ beq 2f
+ mov WL_BLK,a1                    /* or a wheel page's label (wl_blk) */
+ mov (a1),d1
+ cmp 0,d1
+ beq 9f
+ sub d1,d0
+ cmp WLL,d0
+ bcc 9f
 2:
  movbu (AXIS,a2),d3
  cmp 3,d3
- bne 7f
+ beq 1f
+ cmp 7,d3
+ bcc 7f
+ mov xb_va,a0
+ add d3,a0
+ movbu (a0),d1
+ cmp 0xff,d1
+ beq 7f
+ bra 6f
+1:
  cmp 10,d2
  bcc 7f
  movbu (EDK,a2),d3
@@ -2411,6 +2429,22 @@ xb_vl:
  bgt 6f
  inc d1
 6:
+ cmp XL_W0,d1                     /* a wheel page's label: encoded by the build (wl_blk), no drawing */
+ bcs 10f
+ mov WL_BLK,a0
+ mov (a0),d0
+ cmp 0,d0
+ beq 10f
+ mov d0,a1
+ add -XL_W0,d1
+ asl 3,d1
+ mov a1,a0
+ add d1,a0
+ mov (4,a0),d0
+ mov (a0),d1
+ add a1,d1
+ bra 8f
+10:
  mov xb_lc,a0                     /* label d1: draw it if it is not the one in the buffer */
  mov (a0),d0
  cmp d1,d0
@@ -2462,6 +2496,8 @@ xb_vt:                            /* slice 1..10: slot byte, mode, first label, 
  .byte 0,2,0,0                    /* 8 */
  .byte 0,2,0,0                    /* 9 */
  .byte 0,2,0,0                    /* 10 */
+xb_va:                            /* axis 0..6: the page's label, 0xff the stock picture (keep in sync with mklabels.py) */
+ .byte XL_W0,XL_W0+1,XL_W0+2,0xff,0xff,XL_W0+3,XL_W0+4   /* Sat, Lum, Hue, (Extras: xb_vt), (Film), Shadow, Hilite */
 xb_glpath:
  .asciz "C:\\OM3MOD\\GLOG.BIN"
 xb_glmode:
