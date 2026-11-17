@@ -93,6 +93,7 @@ The gate and the digest have unit tests that need no firmware:
 | `color-wheel-dial-label-follows-the-page` | On the Color wheel, the dial label reads Sat, Hue, Lum, Shadow, Hilite as INFO steps through the pages, then Sat again (#64) |
 | `color-wheel-dial-label-resets-with-the-page` | The wheel left on Hue: after the half-press the page and its dial label are back on Saturation (#64) |
 | `color-wheel-saturation-guide-names-the-page` | Both Saturation guides read "Saturation [INFO]", one color and ALL, and the ALL guide is the camera's again off Saturation (#64) |
+| `color-wheel-swatch-follows-the-slice` | The swatch next to "Color" points at the slice's own picture on slices 1, 2, 3 and 12, one per slice, not one per pair (#64) |
 | `look-tables-match-the-model` | `st_run`'s R, G and B tables on a fake COLOR job match the Python models for split toning, curves and both together, and `sd_crc` matches zlib's CRC-32 |
 | `patch-audit` | om-emu's audit finds no patched byte the camera does not load, and no task started at power-on |
 | `static:release-rebuild` | `firmware/patch.py` rebuilds the newest release byte for byte, and `SHA256SUMS` matches |

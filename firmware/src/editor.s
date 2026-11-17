@@ -6062,7 +6062,8 @@ fl_lbl:
  * as OSD type-11 tokens, five to a 64-bit word. Heap: up to 3 blocks of FL_BLK; block 0 starts with 20 slot words
  * and 20 descriptors <6H3I>. P+TTAB = the slot words (0 = none). ic_get answers IC_FM0 + j through fl_ic. */
  .include "films.inc"             /* fl_top (100 x 40), fl_dig (10 x 20 x 36), 4 bits a pixel, low nibble first */
- .include "wheeldef.inc"           /* WLL, XL_W0 (build.py) */
+ .include "wheeldef.inc"           /* SWS, SWA, WLL, XL_W0 (build.py) */
+.set SWB_LEN, 12 * SWA + WLL       /* the sw_blk heap copy: sw_tab, then wl_tab at 12 * SWA (wheel.inc's order) */
 
 /* fl_emit: `call fl_emit,[],0` from fl_mk (its frame: (24) out, (32) tokens in the word, (36) / (40) the word),
  * d0 = token. Uses d0, d1, a0. */
@@ -6470,13 +6471,13 @@ fl_mk:
  bne 22b
  mov (52,sp),a2
  mov a0,(SATB,a2)
- mov WLL,d0                       /* #64: the wheel pages' dial labels, into the heap (a picture in flash */
- call malloc,[],4                 /* blanked the camera menu). Its own block: malloc caps a block at about 16 KB. */
- cmp 0,a0                         /* None: wl_blk stays 0 and xb_vl draws the labels */
+ mov SWB_LEN,d0                   /* #64: the swatches and the wheel pages' dial labels, into the heap (the camera */
+ call malloc,[],4                 /* drew a blank menu from them in flash). Its own block: malloc caps a block at */
+ cmp 0,a0                         /* about 16 KB. None: sw_blk stays 0 and the camera's pictures stay */
  beq 26f
  mov a0,a1
- mov wl_tab,a2
- mov WLL,d1
+ mov sw_tab,a2
+ mov SWB_LEN,d1
 25:
  movbu (a2),d0
  movbu d0,(a1)
@@ -6484,7 +6485,7 @@ fl_mk:
  inc a2
  add -1,d1
  bne 25b
- mov a0,(wl_blk)
+ mov a0,(sw_blk)
 26:
  mov LV_BLK,d0                    /* film test 9: the shooting screen's "FILM N" block, no pictures yet */
  call malloc,[],4
@@ -8645,6 +8646,29 @@ tn_set:
  * tn_poly,[],4`, d0 = id: the value shown on a Shadows / Highlights page, else ed_poly. Keeps d2/d3/a2/a3. */
 tn_poly:
  movm [d2,d3,a2],(sp)
+ mov d0,d2                        /* #64: the profile's first read (slice 0) -> sw_upd, d3 = profile k */
+ exthu d2
+ add -928,d2
+ cmp 48,d2
+ bcc 6f
+ clr d3
+5:
+ cmp 12,d2
+ bcs 4f
+ add -12,d2
+ inc d3
+ bra 5b
+4:
+ cmp 0,d2
+ bne 6f
+ mov mdr,d2
+ add -8,sp                        /* (0) the call's return slot, (4) the entry's MDR, which aget expects */
+ mov d2,(4,sp)
+ call sw_upd,[d2,d3,a2,a3],36
+ mov (4,sp),d2
+ mov d2,mdr
+ add 8,sp
+6:
  TONEP 8f
  mov d0,d2
  exthu d2
@@ -19178,8 +19202,76 @@ el_tid:                           /* the GUI task's id, noted by el_go */
  .include "curvesfile.inc"          /* v0.30 test 9: CURVES.BIN, each film's built-in curves and mix */
 
 .section .ext13,"ax"
- .include "wheel.inc"             /* wl_tab (build.py): fl_mk copies it into wl_blk */
+ .include "wheel.inc"             /* sw_tab, wl_tab (build.py): fl_mk copies both into sw_blk */
 .section .ext12,"ax"
 .balign 4
-wl_blk:                           /* the heap copy of wl_tab (fl_mk), 0 = none */
+sw_blk:                           /* the heap copy of sw_tab and wl_tab (fl_mk), 0 = none */
  .long 0
+/* sw_upd: `call sw_upd,[d2,d3,a2,a3],36` from tn_poly, d3 = profile k. The swatch next to "Color" is one of six
+ * camera pictures, each shared by two slices: the one for the slice under the cursor gets that slice's own picture
+ * (sw_blk). Only a 30 x 30 descriptor with the stock payload or ours is touched. Keeps d0, d1, a0, a1. */
+ .set SW_DESC, 0xa4cf6ac4         /* slices 2n+1 and 2n+2 share the descriptor SW_DESC + n * SW_STEP */
+ .set SW_STEP, 0x11c
+ .set SW_STOCK, 0x104             /* each stock payload sits this far before its descriptor */
+sw_upd:
+ mov d0,(4,sp)
+ mov d1,(8,sp)
+ mov a0,(12,sp)
+ mov a1,(16,sp)
+ mov d3,d0
+ add 2197,d0
+ call aget,[],4                   /* the cursor: slice 1..12, 255 = ALL */
+ add -1,d0
+ cmp 12,d0
+ bcc 9f
+ mov d0,d2
+ mov (sw_blk),d0
+ cmp 0,d0
+ beq 9f
+ mov d0,a1
+ mov d2,d1
+ lsr 1,d1
+ mov SW_DESC,a0
+1:
+ cmp 0,d1
+ beq 2f
+ add SW_STEP,a0
+ add -1,d1
+ bra 1b
+2:
+ movhu (a0),d1
+ cmp 14,d1
+ bne 9f
+ movhu (2,a0),d1
+ cmp 30,d1
+ bne 9f
+ movhu (4,a0),d1
+ cmp 30,d1
+ bne 9f
+ mov (16,a0),d1
+ mov a0,d3
+ add -SW_STOCK,d3
+ cmp d3,d1
+ beq 3f
+ mov a1,d3
+ sub d3,d1
+ cmp 12 * SWA,d1
+ bcc 9f                           /* someone else's: leave it */
+3:
+ mov a1,d1
+4:
+ cmp 0,d2
+ beq 5f
+ add SWA,d1
+ add -1,d2
+ bra 4b
+5:
+ mov d1,(16,a0)
+ mov SWS,d1
+ mov d1,(12,a0)
+9:
+ mov (4,sp),d0
+ mov (8,sp),d1
+ mov (12,sp),a0
+ mov (16,sp),a1
+ ret [d2,d3,a2,a3],36

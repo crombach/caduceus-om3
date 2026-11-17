@@ -2082,7 +2082,7 @@ xb_reloc:                         /* a2 = P (x_load) */
  * label is drawn and encoded (OSD type 11, 70 x 30) only when it changes. */
  .set XL_N, 32
  .include "wbglyph.inc"           /* the build's: XL_FILE, the WB cell's layout (WBC_*) */
- .include "wheeldef.inc"          /* WLL, XL_W0 (build.py) */
+ .include "wheeldef.inc"          /* SWA, WLL, XL_W0 (build.py) */
  .set XL_BM, 270
  /* XL_FILE: the file's size, from the build (wbglyph.inc: v0.25 the WB cell glyphs after the bitmaps) */
  .set XL_OUT, 2048
@@ -2364,10 +2364,11 @@ xb_vl:
  mov (a1),d1
  cmp d1,d0
  beq 2f
- mov WL_BLK,a1                    /* or a wheel page's label (wl_blk) */
+ mov SW_BLK,a1                    /* or a wheel page's label (wl_tab in sw_blk) */
  mov (a1),d1
  cmp 0,d1
  beq 9f
+ add 12 * SWA,d1
  sub d1,d0
  cmp WLL,d0
  bcc 9f
@@ -2429,12 +2430,13 @@ xb_vl:
  bgt 6f
  inc d1
 6:
- cmp XL_W0,d1                     /* a wheel page's label: encoded by the build (wl_blk), no drawing */
+ cmp XL_W0,d1                     /* a wheel page's label: encoded by the build (wl_tab in sw_blk), no drawing */
  bcs 10f
- mov WL_BLK,a0
+ mov SW_BLK,a0
  mov (a0),d0
  cmp 0,d0
  beq 10f
+ add 12 * SWA,d0
  mov d0,a1
  add -XL_W0,d1
  asl 3,d1

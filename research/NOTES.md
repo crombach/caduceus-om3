@@ -5728,10 +5728,22 @@ rgb-page-counts-every-click, halation-matches-the-model). Package `test-builds/2
     74 %) read jammed on the camera, so it is now "Hilite" (56 px, no squeeze).
   - **Half-press.** ed_trig calls vl_s after its page reset, so the label reads "Sat" right away.
   - **W_SALL.** Its SDESC code would now share the descriptor with gd_s0's. Re-enabling it needs a look at both.
-  - **Pictures live in the heap.** A test build that pointed a picture's descriptor into .ext12 (0x60f9…) blanked the
-    rest of the camera's menu (camera, crombach, 2026-11-16, the swatch work on feature/color-wheel-swatches). Every
-    picture of ours that the camera has shown points into the heap (0xa2…). om-emu draws from either address, so no
-    emulator test catches this.
+  - **Swatch per slice (crombach: "the same color for each pair of two swatches is kind of confusing").** The box
+    next to "Color" is its own 30 x 30 picture, not part of the label: six descriptors from 0xa4cf6ac4, 0x11c apart,
+    slices 2n+1 and 2n+2 sharing descriptor n. Each stock payload sits 0x104 before its descriptor and is a 24 x 24
+    fill with a 1 px index-7 border. Fills: 37, 90, 88, 105, 107, 86 (emulator). The widget picks the picture from a
+    state byte ((slice + 1) >> 1) + 1, with 8 for ALL (disassembly). We did not find what writes it.
+    tn_poly (the wheel's first sector read of profile k) now calls sw_upd. sw_upd reads the cursor 2197 + k and points
+    the slice's descriptor at our picture for that slice (sw_tab in .ext13, mkicons.swatches, 260 B each, the stock
+    stream format byte for byte). Their fills use palette indices 108..119 (Yellow .. Yellow-green). build.py writes
+    LookLab's wheel colors (mkicons.SWATCH_ARGB) into those unused fillers of the palette at 0x614a67f0 (record
+    0x614a6bf0). Emulator: the descriptor follows slices 1, 2, 3, 12,
+    and ALL leaves it alone. om-emu's screenshot does not draw the swatch's layer, so the colors are camera-only.
+  - **Camera (crombach, 2026-11-16, build af2eeea6…): the wheel showed, the rest of the menu went blank.** That build
+    pointed the descriptors at sw_tab in .ext12 (0x60f96900..). Every picture of ours that the camera has shown points
+    into the heap (0xa2…), so the cause is likely the address (analysis). fl_mk now copies sw_tab into the P+SATB block
+    (SAT_SW, after the Luminance label), and sw_upd points there (emulator: 0xa2714890). om-emu draws from either
+    address, so no emulator test catches this: a picture for the camera must point into the heap.
   - **Camera (crombach, 2026-11-16, build b023e44e…): the menu works, but the wheel showed a moment late when moving
     down onto it.** om-emu instruction counts on that step (a copy of session_ed1.mjs that adds `insns` to WATCH hits,
     ed_get's first to last hit): v0.30.3 1 761 445, this build 3 379 421. The extra 1.62 M is xb_rend drawing "Sat"
@@ -5739,9 +5751,10 @@ rgb-page-counts-every-click, halation-matches-the-model). Package `test-builds/2
     leaving the wheel off Saturation. Now build.py encodes the five wheel labels (mklabels.render, encode11: the same
     sizes as xb_rend's, per the label tests) into wl_tab. xb_vl points VDESC at them, with no drawing. Step after:
     1 761 614.
-  - **Where the pictures live.** wl_tab sits in .ext13 (.ext12 had no room). fl_mk copies it into a heap block of its
-    own, wl_blk. It could not join the P+SATB block: an 18 KB block made malloc return 0 in om-emu, and the Saturation
-    pictures went with it. xb_vl gets wl_blk's address from build.py (WL_BLK).
+  - **Where the pictures live.** sw_tab and wl_tab sit in .ext13 (.ext12 had no room for both). fl_mk copies them into
+    one heap block of their own, sw_blk (8964 B). They could not join the P+SATB block: that would make it 18 KB,
+    malloc returned 0 in om-emu, and the Saturation pictures went with it. xb_vl gets sw_blk's address from build.py
+    (SW_BLK).
   - **Build note.** A `.set` that uses a films.inc size before films.inc is included works in editor.s's own code.
     But nm prints a wrong value for it, so a value handed to the code block must be set after films.inc.
   - **Camera (crombach, 2026-11-16, E1479999.BIN 90283858…): no issues.** Labels, the one Saturation page, the guides,
@@ -5749,6 +5762,7 @@ rgb-page-counts-every-click, halation-matches-the-model). Package `test-builds/2
     "Vivid". The wheel opens as fast as on v0.30.3 (om-emu: 1 762 023 instructions on that step, v0.30.3 1 761 853).
     The swatch work moved to feature/color-wheel-swatches, its own PR.
   - Tests:
+    - `color-wheel-swatch-follows-the-slice`
     - `color-wheel-dial-label-follows-the-page` (INFO from Saturation to Hue)
     - `color-wheel-dial-label-resets-with-the-page`
     - `color-wheel-saturation-guide-names-the-page`

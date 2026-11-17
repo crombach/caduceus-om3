@@ -206,6 +206,8 @@ def build(defaults, testfile, out):
     slab = mkicons.encode11(bytes(lab.flatten().tolist()), 70, 30)
     sgd = mkicons.encode11(bytes(gd.flatten().tolist()), 175, 50)
     hlab, llab = (mkicons.encode11(bytes(a.flatten().tolist()), 70, 30) for a in mkicons.hsl_labels())
+    sws = mkicons.swatch_streams()
+    assert len({len(s) for s in sws}) == 1
     sys.path.insert(0, str(ROOT / 'card'))
     import mklabels                              # #64: the wheel pages' dial labels, encoded here, not on the camera
     w0 = mklabels.LABELS.index('Sat')
@@ -214,8 +216,10 @@ def build(defaults, testfile, out):
     for s in wls:
         wl += struct.pack('<II', at, len(s)); at += (len(s) + 3) & ~3
     wl += b''.join(s + bytes(-len(s) % 4) for s in wls)
-    (out / 'wheel.inc').write_text('.balign 4\nwl_tab:\n' + db(bytes(wl)))
-    (out / 'wheeldef.inc').write_text(f'.set WLL, {len(wl)}\n.set XL_W0, {w0}\n')
+    (out / 'wheel.inc').write_text('.balign 4\nsw_tab:\n' + ''.join(db(s) + ' .balign 4\n' for s in sws)
+                                   + 'wl_tab:\n' + db(bytes(wl)))
+    (out / 'wheeldef.inc').write_text(f'.set SWS, {len(sws[0])}\n.set SWA, {(len(sws[0]) + 3) & ~3}\n'
+                                      f'.set WLL, {len(wl)}\n.set XL_W0, {w0}\n')
     fwp, fwi, boxes, dw = mkicons.sp_parts()     # the quick menu's "FILM n" (fl_sp draws it)
     assert fwp.shape[0] == mkicons.SPH == 48 and boxes[0].shape[1] % 2 == 0
     # v0.27 debug log: the build's name (firmware/VERSION, one line), written into CADLOG.TXT
@@ -489,6 +493,12 @@ def build(defaults, testfile, out):
         for j in (i, i + 128):
             assert struct.unpack_from('<I', m, o(PAL) + 4 * j)[0] == 0x01010101, j
             struct.pack_into('<I', m, o(PAL) + 4 * j, argb)
+    # #64: the wheel's swatch palette (record 0x614a6bf0 -> 0x614a67f0). Fillers 108..119 take the 12 slice colors.
+    SW_PAL = 0x614a67f0
+    assert struct.unpack_from('<II', m, o(0x614a6bf0)) == (256, SW_PAL)
+    for j, argb in zip(mkicons.SWATCH_INDEX, mkicons.SWATCH_ARGB):
+        assert struct.unpack_from('<I', m, o(SW_PAL) + 4 * j)[0] == 0x01010101, j
+        struct.pack_into('<I', m, o(SW_PAL) + 4 * j, argb)
     assert sy['NR_IT'] == NR_IT if 'NR_IT' in sy else True
     # v0.23 Blacks / Whites icons: the left column's 5 slider-icon slots take ic_list (6 choices) instead of the stock
     # lists of 3 (layout records hold the list's start and end); the pictures from firmware/mkicons.py
@@ -838,7 +848,7 @@ def build(defaults, testfile, out):
 def make_xblock(out, sy, xtag):
     """Assemble the code block, link it at two bases, find the 32-bit fields that move (+delta absolute, -delta
     PC-relative to the firmware), check that relocating the first link gives the second, and pack the block."""
-    ext = dict(getter=0x60063380, facade=0x60b8696a, fopen=sy['fopen'], fread=sy['fread'], fclose=sy['fclose'], malloc=0x60024068, sd_crc=sy['sd_crc'], gd_mode=sy['gd_mode'], VDESC=0xa4cf688c, VSTOCK_P=0xa4cf6210, VSTOCK_S=1660, AXIS=684, EDK=687, WL_BLK=sy['wl_blk'], fx_tail=sy['fx_tail'], fx_back=sy['fx_back'], lv_skip=sy['lv_skip'], c11_ret=0x60504edb,
+    ext = dict(getter=0x60063380, facade=0x60b8696a, fopen=sy['fopen'], fread=sy['fread'], fclose=sy['fclose'], malloc=0x60024068, sd_crc=sy['sd_crc'], gd_mode=sy['gd_mode'], VDESC=0xa4cf688c, VSTOCK_P=0xa4cf6210, VSTOCK_S=1660, AXIS=684, EDK=687, SW_BLK=sy['sw_blk'], fx_tail=sy['fx_tail'], fx_back=sy['fx_back'], lv_skip=sy['lv_skip'], c11_ret=0x60504edb,
                STATE=sy['STATE'], HMAX=sy['HMAX'], POOL=sy['POOL'], MAGIC=sy['MAGIC'], BUFIDX=0x604afdf9, SF_ENT=0x604be2aa, LOCK=0x60075f73, UNLOCK=0x60075fbc, WINMAP=0x60071018, FLUSH=0x60070e69, free=0x6002409a,
                SEL=0x6052cf39, fwrite=0x608d4da9, PF_CAPTO=sy['pf_capto'], PF_CAP=sy['pf_cap'], E_LK=sy['e_lk'], E_RET=sy['e_ret'], E_RST=sy['e_rst'], REFRESH=0x611b20ea, XT_TAB=sy['xt_tab'], EMARK=680, EMAGIC=0x45334d4f,
                FL_HAS=sy['fl_has'], FACADE=0x60b8696a, AGET=0x603f039d, TXGET=0x604cd921, TXATT=0x604bc0cf, TXPF=0x604b77fb, TWO=sy['TWO'], TW_LEN=sy['TW_LEN'], FV0=sy['FV0'],

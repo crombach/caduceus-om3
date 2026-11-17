@@ -356,6 +356,30 @@ def sat_pictures():
     return lab, gd
 
 
+# The wheel's swatch per slice, cursor 1..12 (docs/PHOTO_TO_LOOK.md order): Yellow, Orange, Orange-red, Red, Magenta,
+# Violet, Blue, Blue-cyan, Cyan, Green-cyan, Green, Yellow-green. build.py writes SWATCH_ARGB into the swatch palette's
+# unused entries SWATCH_INDEX. The colors are LookLab's wheel (research/showcase/wheel.py COLS).
+SWATCH_INDEX = list(range(108, 120))
+SWATCH_ARGB = [0xfff2d600, 0xfff59a00, 0xfff05a00, 0xffe0102a, 0xffd4157a, 0xff7a33cc, 0xff1f5fe0, 0xff1d96e0,
+               0xff16c0d0, 0xff18b583, 0xff2fae3a, 0xff9cc414]
+
+
+def swatches():
+    """#64: the wheel's swatch next to "Color", one per slice: 30 x 30, a 1 px border (index 7) around a 24 x 24
+    fill, clear outside, the stock swatch's metrics."""
+    out = []
+    for idx in SWATCH_INDEX:
+        a = np.zeros((30, 30), dtype=np.uint8)
+        a[2:28, 2:28] = 7
+        a[3:27, 3:27] = idx
+        out.append(a)
+    return out
+
+
+def swatch_streams():
+    return [encode11(bytes(a.flatten().tolist()), 30, 30) for a in swatches()]
+
+
 def hsl_labels():
     """Film test 10 (owner: "hue, saturation and luminance"): the wheel's "Color" dial label on the Hue and Luminance
     pages, 70 x 30 as sat_pictures' label (card/mklabels.py style)."""

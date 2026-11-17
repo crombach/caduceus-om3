@@ -19,6 +19,7 @@ import static_check  # noqa: E402
 from provenance import source_digest  # noqa: E402
 sys.path.insert(0, str(REPO / 'card'))
 import mkcurves  # noqa: E402
+import mkicons  # noqa: E402
 _spec = importlib.util.spec_from_file_location('curves_model', REPO / 'research/rgbcurves/model.py')
 curves_model = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(curves_model)
@@ -169,6 +170,15 @@ WHEEL_SAT_GUIDES = (f'{OPEN_WHEEL} expect:mem:{GDESC + 12:x}={U32(SATURATION_GUI
 # Left on Hue, the half-press puts the wheel back on Saturation, and its dial label with it.
 WHEEL_RESET_LABEL = (f'{OPEN_WHEEL} info wait {LABEL_IS("Hue")} menu wait menu wait s1 wait wait '
                      f'{LABEL_IS("Sat")} poweroff')
+# The swatch next to "Color" shows the slice's own color. The camera has one picture per two slices (descriptor
+# SWATCH_DESC + n * 0x11c for slices 2n+1, 2n+2). The check reads the start of the picture the descriptor points at,
+# up to the first fill run. The front dial: sub-1 goes to the next slice and sub+1 back. Past slice 1 comes ALL, then 12.
+SWATCH_DESC, SWATCH_STEP = 0xa4cf6ac4, 0x11c
+SWATCH_PICTURES = mkicons.swatch_streams()
+SWATCH_IS = lambda s: f'expect:mem:{SWATCH_DESC + (s - 1) // 2 * SWATCH_STEP + 16:x}+0*={SWATCH_PICTURES[s - 1][:28].hex()}'
+WHEEL_SWATCHES = (f'{OPEN_WHEEL} {SWATCH_IS(1)} sub-1 wait {SWATCH_IS(2)} sub-1 wait {SWATCH_IS(3)} '
+                  f'sub+1 wait sub+1 wait {SWATCH_IS(1)} sub+1 wait sub+1 wait {SWATCH_IS(12)} poweroff')
+
 
 @dataclass
 class Boot:
@@ -297,6 +307,9 @@ TESTS = {
     ],
     'color-wheel-dial-label-resets-with-the-page': [
         Boot(WHEEL_RESET_LABEL),
+    ],
+    'color-wheel-swatch-follows-the-slice': [
+        Boot(WHEEL_SWATCHES),
     ],
     'color-wheel-saturation-guide-names-the-page': [
         Boot(WHEEL_SAT_GUIDES),
